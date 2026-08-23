@@ -144,3 +144,117 @@ Apply only the rewrites shown in the approved plan.
   normal. The object is there; the hardware link is a separate, later concern.
 - **Skipping the plan.** This skill exists to *not* change a live house before you've shown the
   plan. If you're about to call a write tool without an approved plan — stop.
+
+---
+
+# Field lessons — first real parallel migration (2026-08-23)
+
+Eight object rows moved or attempted between two live instances in one session. These are the
+things the plan-first recipe above does **not** catch on its own.
+
+## 1. Build the RECEIVER first, then debug the sender
+
+⛔ **The single most expensive mistake of the session.** Three publish attempts were debugged —
+parameter types, topic prefixes, call context — while **no receiving instance existed on the
+target at all**. Every one of those attempts would have failed regardless.
+
+🎯 While the receiver is missing, a failure is **ambiguous**: sender broken, receiver absent,
+bridge filtering — all equally plausible. With the receiver standing and *proven* against a
+known-live topic, the next failure is unambiguous and took one test.
+
+➡️ **Order: receiver → prove it with a topic that is already flowing → only then the sender.**
+
+## 2. A card ages faster than the system it describes
+
+Four of seven rows in the ownership card turned out wrong — same cause every time: the
+classification came from a session in which the described state no longer held.
+
+- A row marked *"no side effects, migrate first"* carried a `VariableCustomAction` firing an
+  extractor-fan automation.
+- Two sensor rows assumed a mirroring bridge; the bridge had been switched to a named allow-list
+  the evening before the card was written.
+- A row was filed under the wrong room entirely (all five links pointed elsewhere).
+
+⛔ **A risk-ordered list built on unverified classifications puts the *least* verified case
+first** — it inverts its own purpose. **Re-verify the row you are about to move, every time:**
+`IPS_GetVariable()` → check `VariableCustomAction`, and check the archive/bridge reality.
+
+## 3. Find consumers via scripts AND events AND links
+
+⛔ **Pulled dependencies are invisible in the object tree.** For one signal, only **one of four**
+consumers had a trigger event; the other three read the value during their own cyclic run. An
+event-only search would have reported 3 of 4 missing and looked complete.
+
+For another sensor the chain was three levels deep (MQTT → copy event → derive event → links)
+with **zero script readers and zero links on the first level** — a script-text search alone
+would have declared it dead.
+
+⭐ **Recipe:** one throwaway PHP script walking `IPS_GetScriptList()` (text search),
+`IPS_GetEventList()` (`TriggerVariableID`), **and** `IPS_GetLinkList()` (`TargetID`) —
+with a **known-positive ID in the same run** as proof the search works. Delete it after.
+ℹ️ `IPS_GetReferences` does not exist; `IPS_GetReferenceList` exists only as a module function.
+
+## 4. A migrated row is three things, not one
+
+Moving an HTTP-polled device needed: the **IO instance**, the **parser rules**, *and* the
+**cyclic event with its EventAction**. Missing the third produces a correctly configured
+instance that never fetches — indistinguishable from a network fault.
+
+⚠️ **Custom variable profiles are a silent fourth.** Missing profiles do not error; the values
+just render with different units and decimals — which reads as a *measurement* discrepancy when
+comparing the two systems. Recreate them field by field before the variables.
+
+## 5. Operability and side effect are separable — do not drop both
+
+An action script on a settable variable often does two things: `SetValue` (makes it operable in
+the UI) **and** `IPS_RunScript` (re-evaluates the rule). Fearing the second is no reason to omit
+the first — the values become read-only display and the human cannot work.
+
+⭐ **Two-phase action script:** phase 1 sets the value only, with the `IPS_RunScript` line sitting
+commented out right below it, activated when the automation goes live.
+
+## 6. Never rebuild an automation whose safety interlock has no source
+
+One extractor-fan automation carries a hard interlock: an oil stove sensor, because the fan
+creates negative pressure and can pull flue gas into the room. The source variable does not
+exist on the target.
+
+⛔ **Do not create that script "inactive for now".** A file whose interlock points at a
+non-existent ID runs wrong exactly once — the first time someone enables it. Leave it out and
+flag the missing dependency instead.
+
+## 7. The dangerous moment is indivisible
+
+For a control loop, "activate the new one" and "deactivate the old one" are **one step**. In
+between, two hysteresis controllers drive one actuator.
+
+⭐ **If they must be split, switch OFF first:** a briefly unregulated device is cheaper than two
+competing regulators.
+
+## 8. A canary must count state CHANGES, not messages
+
+The card said *"count switching operations, they must not double"*. Measured reality: the command
+topic carried **two messages every minute** regardless of any switching — a cyclic "repeat for
+radio redundancy" event plus a double send inside the script. 120 messages/h of baseline noise.
+
+⛔ And the counting canary misses the **expensive** failure: not "two controllers" but **"no
+controller"** — which looks exactly like normal operation while the repeat event keeps firing.
+**Alarm on both: doubled changes, and zero changes despite a deviation.**
+
+## 9. Restarts are the best test you get for free
+
+A module install forced an IPS restart on the target. Afterwards all three freshly built chains
+came back on their own — HTTP poller (3 s old), MQTT signal (retained value returned), settings
+unchanged. **One cold start proves more than any individual check.** Seek it out rather than
+avoid it — on a system that is not yet productive it costs nothing.
+
+## 10. Credentials in transfer scripts: use a mechanism, not a resolution
+
+JSON-RPC between two IPS instances needs Basic Auth, so a history transfer script **will** contain
+a password. An RBAC read-only user is **not** an option (licence-gated).
+
+⭐ **Make the script delete itself** as its last line — `IPS_DeleteScript($_IPS['SELF'], true);`.
+A script you *must* remember to delete survives as long as your attention does; one that deletes
+itself does not survive its own run.
+⚠️ **Honest limit:** a fatal abort never reaches that line. So the *next* run starts by checking
+for leftovers — that check belongs in the procedure, not in someone's memory.

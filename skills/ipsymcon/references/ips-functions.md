@@ -107,3 +107,78 @@ ips_call("IPS_SetVariableProfileAssociation", ["MyMode", 0, "Aus", "", -1])  # v
 - `IPS_GetEvent(EventID)` — read an event's configuration (trigger, cyclic settings,
   script) before modifying it. Call via `ips_call("IPS_GetEvent", [eid])`.
 - `IPS_ObjectExists(ID)` — cheap existence check before acting on an assumed ID.
+
+## MQTT (verified live 2026-08-23, IPS 9.0)
+
+⛔ **`MQTT_Publish` belongs to the *third-party* module, not to the native client.**
+On a system carrying Schnittcher's `MQTTClient` (`{D806E782-…}`), `MQTT_Publish(id, topic,
+payload, qos, retain)` exists and is accepted — but calling it against the **native** IPS
+`MQTT Client` (`{F7A0DD2E-…}`) throws *"Instance does not implement this function"*, and
+calling it against the native `MQTT Server` (`{C6D2AEB3-…}`) does too.
+
+⚠️ **Worse than an error: the third-party module accepted three publishes silently and sent
+nothing.** "No error thrown" is not delivery — always verify at the broker.
+
+✅ **The native way to publish** is a `MQTT Client Device` (`{91D174F2-…}`) with
+`UseSendTopic=true` + `SendTopic`, then `RequestAction(<its Value variable>, payload)`.
+Properties: `Topic` (receive), `SendTopic`, `UseSendTopic`, `Retain`, `Type` (0=bool,
+1=int, 2=float, 3=string), `Locked`.
+
+⛔ **`IPS_ApplyChanges` on an MQTT Client does NOT reconnect** — it does not re-subscribe,
+so retained messages are not re-delivered. Verified with a control topic that *had* to
+return a value and stayed empty. **Reconnect via the Client Socket instead:**
+`IPS_SetProperty(socket,'Open',false)` → `IPS_ApplyChanges(socket)` →
+`IPS_SetProperty(socket,'Open',true)` → `IPS_ApplyChanges(socket)`.
+
+ℹ️ Native `MQTT Client` default subscription is `[{"Topic":"#","QoS":0}]`. When an instance is
+only meant to **send**, narrow it to a dead topic — otherwise it pulls the whole broker in
+alongside any existing bridge.
+
+## Events (verified live 2026-08-23)
+
+⛔ **A cyclic event does nothing on its own.** It needs an **EventAction**. Example from a
+live HTTP poller: `IPS_SetEventAction($eid, '{28E92DFA-1640-2F3B-74F6-4B2AAE21CE22}',
+['FUNCTION' => 'WWW_UpdatePage'])`. Without it you get a timer that fires on schedule and
+fetches nothing — a failure that looks like a network problem.
+
+⚠️ **`CyclicTimeType: 1` means SECONDS.** Do not infer it from the number. Read it off the
+live event instead: `IPS_GetEvent()` returns `LastRun` and `NextRun` — their difference *is*
+the interval. (Guessing "minutes" would have polled 60× too slowly, which barely shows on a
+temperature value.)
+
+- `IPS_SetEventCyclic($id, $DateType, $DateValue, $DateDay, $DateDayValue, $TimeType, $TimeValue)`
+- `TriggerType`: 0=on update · 1=on change · 2=below limit · 3=above limit · 4=on value
+
+## Archive / history transfer between instances
+
+- `AC_AddLoggedValues(int $ArchiveID, int $VariableID, array $Values)` — `$Values` are
+  `['TimeStamp'=>int,'Value'=>mixed]`; strip anything else `AC_GetLoggedValues` returns.
+  Follow with `AC_ReAggregateVariable($ArchiveID, $VariableID)`.
+- `AC_GetLoggedValues($ArchiveID, $VariableID, $StartTime, $EndTime, $Limit)` — `0,0,0` = all.
+- ⛔ **`AC_ReloadVariableWatch` does not exist** (thrown as undefined function).
+- ⭐ **Insert in chunks (~500).** 14k values transferred fine that way.
+- ⭐ **Two checks, both needed.** Count (`target_after == source + target_before`) *and*
+  content (same value at identical timestamps). Count alone cannot see wrong values — and
+  the content probe is what explains a stray `+1` (it is the variable's initial value).
+
+## Users / permissions — licence-gated
+
+⛔ **The whole user management is an RBAC licence feature.** `IPS_CreateUser`,
+`IPS_AddPermissionToUser`, `IPS_CreateRole` etc. all exist but abort with
+*"This function is only available for licenses with the RBAC feature enabled!"*.
+`IPS_CreateUser(string $UserName, int $pUserType)` takes 2 parameters.
+ℹ️ A stock system has exactly one local user, `@admin`; a Symcon-Connect login is **not** a
+local user and does not appear in `IPS_GetUserList()`.
+
+## PHP environment inside IPS scripts
+
+- ⛔ **`set_time_limit()` is disabled** — calling it is a fatal error. Keep each run short
+  (one variable per run) instead of raising a limit.
+- ⭐ **`ReflectionFunction` works on module functions** (`MQTT_Publish` → 5 named parameters)
+  but returns **nothing** for IPS core functions, which are registered without metadata.
+  For those, probe the parameter count with `call_user_func_array` in try/catch.
+- ⭐ **`get_defined_functions()` is the fastest way to find an API surface** — filtering
+  `internal` for `/user|role|permission/i` surfaced 28 functions in one call.
+- ⚠️ **Object names can contain control characters** (seen under auto-created MQTT topics).
+  They break shell round-trips and JSON display — never pass a raw object name into a
+  command line.

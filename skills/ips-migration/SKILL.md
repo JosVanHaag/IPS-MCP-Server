@@ -1,12 +1,7 @@
 ---
 name: ips-migration
 description: >-
-  Use when migrating or transferring an IP-Symcon object subtree from one IPS
-  instance to another — rebuilding IP-Symcon on a new machine/Linux server,
-  cloning a config onto a fresh install, moving home-automation logic between
-  instances — or when verifying that such a migration came across correctly.
-  Triggers: "IPS umziehen", "IP-Symcon auf neuen Rechner / auf Linux", "Subtree
-  auf andere Instanz", "Config migrieren", "migrate IPS subtree", "IPS-PC-Migration".
+  Migrate an IP-Symcon object subtree between instances, or verify such a migration. Triggers: "IPS umziehen", "IP-Symcon auf neuen Rechner", "Subtree auf andere Instanz", "Config migrieren".
 ---
 
 # IP-Symcon subtree migration
@@ -48,7 +43,12 @@ read (source)  →  plan + flag (NO writes)  →  approve  →  two-pass write  
 ```
 
 The full step-by-step, the exact `ips_call` recipes, the flag catalogue and the plan/report
-templates live in **[references/workflow.md](references/workflow.md)**. The IP-Symcon function
+templates live in **[references/workflow.md](references/workflow.md)** — whose second half is a
+**field-lessons section from the first real parallel migration (2026-08-23)**: build the receiver
+before debugging the sender, why a migration card ages faster than the system, finding consumers
+via scripts *and* events *and* links, and the safety-interlock rule (never rebuild an automation
+whose interlock has no source on the target). Read it before planning — it covers the failures the
+recipe above does not. The IP-Symcon function
 signatures are in the ipsymcon skill's **[ips-functions.md](../ipsymcon/references/ips-functions.md)**.
 
 ## The non-negotiables

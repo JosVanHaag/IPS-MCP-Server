@@ -1,14 +1,7 @@
 ---
 name: ips-automation
 description: >-
-  Use when designing or building a NEW automation in IP-Symcon — a time- or
-  threshold-driven rule that switches, controls or watches something: standby
-  cut-off, scheduled on/off, hysteresis control, watchdogs, tariff-driven loads,
-  presence logic. Covers the design decisions the plain ipsymcon skill does not:
-  choosing thresholds, handling state transitions, making settings adjustable,
-  and proving the automation actually runs. Triggers: "Automation bauen",
-  "Automatik für …", "soll automatisch ein-/ausschalten", "Zeitschaltung",
-  "Schwellwert", "Nachlauf", "Standby abschalten", "build an IPS automation".
+  Design and build a NEW IP-Symcon automation: thresholds, state transitions, adjustable settings, verification. Triggers: "Automation bauen", "Zeitschaltung", "Schwellwert", "Standby abschalten".
 ---
 
 # IP-Symcon — designing an automation

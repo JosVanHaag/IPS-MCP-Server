@@ -1,15 +1,7 @@
 ---
 name: ipsymcon
 description: >-
-  Develop, modify and inspect an IP-Symcon home-automation system through the
-  `ipsymcon` MCP server — browse the object tree, read variables and scripts, and
-  create/edit PHP scripts, variables, events and automations. Use this whenever the
-  user mentions IP-Symcon or IPS, wants to inspect, change, build, automate or debug
-  their home automation ("Symcon", "Hausautomation"), asks to add or edit a script,
-  event or variable, control or read a device/variable, or refers to objects/IDs in
-  their IPS installation — even if they don't say "IP-Symcon" explicitly but the
-  context is clearly their Symcon system. Changes are ALWAYS planned and shown before
-  they are applied.
+  Inspect and modify an IP-Symcon system via the ipsymcon MCP — object tree, variables, PHP scripts, events, automations. Use for any Symcon/Hausautomation request. Changes are always planned first.
 ---
 
 # IP-Symcon development

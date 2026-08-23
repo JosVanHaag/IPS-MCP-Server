@@ -31,7 +31,29 @@ precise. Use `ips_get_variable_by_path` when you know the path but not the ID.
 1. Resolve the parent Category id by reading the tree.
 2. Plan: "new PHP script `<name>` under `<parent name> (<id>)`, content: <show it>".
 3. On approval: `ips_create_script(parent_id, name, content)` → note the new id.
-4. Report the new id.
+4. **Hide it: `ips_call("IPS_SetHidden", [<script_id>, true])`.** Not optional — see below.
+5. Report the new id.
+
+> ⛔ **SCRIPTS ARE ALWAYS HIDDEN. NO EXCEPTIONS.**
+> `ips_create_script` creates the object **visible**, so it shows up in the visualisation
+> next to the things the user actually operates. A script is machinery, not a control —
+> nobody taps a PHP file on a wall panel.
+>
+> **Found the hard way on 2026-08-16:** a freshly created calculation script sat visible in
+> the user's tile view. The three scripts already in that same category — all created the
+> day before by the same user — were **all** `ObjectIsHidden: true`. **The convention was
+> right there in the tree and simply wasn't read.** The user had to point it out.
+>
+> ➡️ **Before creating, check the siblings** (`IPS_GetObject` on an existing script in the
+> target category) — the house convention is usually already visible in the neighbours.
+> After creating, **verify with `IPS_GetObject` that `ObjectIsHidden` is actually `true`**;
+> "call returned true" is not the same as "the flag is set" (same class of trap as
+> `IPS_SetVariableCustomAction` reporting success while a `StepSize 0` profile kept the
+> control dead).
+>
+> **Variables are the opposite:** they carry the values the user wants to see and stay
+> **visible** unless they are pure internal state (last-run timestamps, counters, helper
+> flags) — those get hidden too. Events are never shown in the visualisation anyway.
 
 ### Creating a category / variable / event
 

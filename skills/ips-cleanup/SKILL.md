@@ -1,11 +1,7 @@
 ---
 name: ips-cleanup
 description: >-
-  Use when auditing or cleaning up an IP-Symcon system — recurring errors / red
-  logs, instances stuck in an error state, dead or orphaned objects to remove, or
-  preparing a clean source before a migration. Triggers: "IPS aufräumen",
-  "Fehler-Audit", "rote Logs wegbekommen", "tote Instanzen entfernen",
-  "IPS-Health-Check", "Vor-Migrations-Cleanup", "clean up IP-Symcon".
+  Audit and clean up an IP-Symcon system — recurring errors, red logs, instances in error state, dead objects. Triggers: "Fehler-Audit", "rote Logs", "tote Instanzen entfernen", "IPS-Health-Check".
 ---
 
 # IP-Symcon cleanup & error review

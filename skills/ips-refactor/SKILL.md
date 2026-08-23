@@ -1,14 +1,7 @@
 ---
 name: ips-refactor
 description: >-
-  Use when restructuring WORKING parts of an IP-Symcon system without changing
-  what they do — untangling a grown branch, resolving duplicate variables,
-  renaming "Unnamed Object" links, grouping scattered objects into categories,
-  extracting hardcoded values into adjustable variables, hiding machinery from
-  the visualisation. Distinct from ips-cleanup, which removes what is dead.
-  Triggers: "IPS aufräumen aber nichts wegwerfen", "Struktur sortieren",
-  "durcheinander", "umbenennen", "Duplikate", "sauber gruppieren",
-  "refactor IPS", "IPS-Struktur überarbeiten".
+  Restructure WORKING IP-Symcon parts without changing behaviour — duplicates, renaming, grouping, extracting constants. Not ips-cleanup (that removes dead things). Triggers: "Struktur sortieren".
 ---
 
 # IP-Symcon — refactoring
