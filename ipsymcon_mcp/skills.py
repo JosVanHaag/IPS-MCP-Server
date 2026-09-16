@@ -60,6 +60,10 @@ alle ips_create_*/ips_set_*/ips_import_*):
   lesen → Plan mit konkretem vorher→nachher zeigen → Freigabe abwarten →
   ausführen → berichten, was tatsächlich geändert wurde.
 
+Lesen ist davon ausgenommen und braucht keinen Plan -- dafuer gibt es die
+Lesewerkzeuge und das Lese-Gateway ips_call_read, das schreibende Funktionen
+von sich aus abweist.
+
 Nie schreiben, bevor der Mensch den Plan gesehen hat. Objekt-IDs sind
 nichtssagende Ganzzahlen — niemals raten, immer über Namen bzw. Baum auflösen.
 Schlägt ein Schritt fehl: anhalten und berichten, nicht weitermachen.

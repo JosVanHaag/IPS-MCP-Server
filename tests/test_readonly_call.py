@@ -100,16 +100,6 @@ def test_kernpraefix_ohne_leseverb_bleibt_gesperrt():
 # --- Das Tor ------------------------------------------------------------------
 
 
-def test_lesender_call_ohne_write_flag(monkeypatch):
-    """Kernfrage: liest ohne IPS_ENABLE_WRITE — vorher war das gesperrt."""
-    monkeypatch.setenv("IPS_ENABLE_WRITE", "false")
-    fake = _client_returning({"CyclicTimeType": 1, "CyclicTimeValue": 60})
-    with patch.object(server, "_client", return_value=fake):
-        out = _run(ips_call(CallInput(method="IPS_GetEvent", params=[10001])))
-    assert json.loads(out)["result"]["CyclicTimeValue"] == 60
-    fake.call.assert_awaited_once_with("IPS_GetEvent", [10001])
-
-
 def test_schreibender_call_ohne_write_flag_verweigert(monkeypatch):
     """Kontrolle — der Schutz darf durch die Aenderung nicht loecherig geworden sein."""
     monkeypatch.setenv("IPS_ENABLE_WRITE", "false")
@@ -126,3 +116,49 @@ def test_schreibender_call_mit_write_flag(monkeypatch):
     with patch.object(server, "_client", return_value=fake):
         out = _run(ips_call(CallInput(method="IPS_SetName", params=[10002, "neu"])))
     assert json.loads(out)["result"] is True
+
+
+# --- Die Aufspaltung ips_call_read / ips_call --------------------------------
+
+
+def test_lesegateway_ohne_write_flag(monkeypatch):
+    """ips_call_read liest ohne IPS_ENABLE_WRITE -- der Zweck der Aufspaltung."""
+    monkeypatch.setenv("IPS_ENABLE_WRITE", "false")
+    fake = _client_returning({"CyclicTimeValue": 60})
+    with patch.object(server, "_client", return_value=fake):
+        out = _run(server.ips_call_read(CallInput(method="IPS_GetEvent", params=[10001])))
+    assert json.loads(out)["result"]["CyclicTimeValue"] == 60
+
+
+def test_lesegateway_weist_schreibmethode_ab_auch_mit_write_flag(monkeypatch):
+    """Der wichtigste Test: die Grenze haengt am Werkzeug, nicht am Schalter.
+
+    Waere ips_call_read nur durch das Write-Gate geschuetzt, waere die Aufspaltung
+    wirkungslos, sobald geschrieben werden darf -- und genau dann soll sie tragen.
+    """
+    monkeypatch.setenv("IPS_ENABLE_WRITE", "true")
+    fake = _client_returning(True)
+    with patch.object(server, "_client", return_value=fake):
+        out = _run(server.ips_call_read(CallInput(method="IPS_DeleteObject", params=[10002])))
+    assert "only accepts reading functions" in out
+    fake.call.assert_not_awaited(), "Eine abgewiesene Methode darf IPS nicht erreichen"
+
+
+def test_lesegateway_weist_zugangsdatentraeger_ab(monkeypatch):
+    """Auch hier gilt die Ausnahmeliste -- sonst waere sie ueber das neue Tor umgehbar."""
+    monkeypatch.setenv("IPS_ENABLE_WRITE", "false")
+    fake = _client_returning({})
+    with patch.object(server, "_client", return_value=fake):
+        out = _run(server.ips_call_read(CallInput(method="IPS_GetSnapshot", params=[])))
+    assert "only accepts reading functions" in out
+    fake.call.assert_not_awaited()
+
+
+def test_schreibgateway_verlangt_wieder_immer_das_flag(monkeypatch):
+    """ips_call hat die urspruengliche Semantik zurueck: Gate fuer alles."""
+    monkeypatch.setenv("IPS_ENABLE_WRITE", "false")
+    fake = _client_returning({})
+    with patch.object(server, "_client", return_value=fake):
+        out = _run(ips_call(CallInput(method="IPS_GetEvent", params=[10001])))
+    assert out == server.WRITE_DISABLED_MSG
+    fake.call.assert_not_awaited()

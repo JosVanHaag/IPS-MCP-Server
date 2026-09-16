@@ -38,7 +38,7 @@ If you ever find yourself about to call **any write/dev tool** (anything in the 
 table below) *before* the user has seen and approved a plan — stop. That's the failure
 mode this skill exists to prevent.
 
-## The MCP tools (22)
+## The MCP tools (23)
 
 Read tools (always available, safe to use during planning):
 
@@ -54,6 +54,7 @@ Read tools (always available, safe to use during planning):
 | `ips_get_script_content` | the full PHP source of a script. |
 | `ips_snapshot_variables` | capture the current values of several variables (keep it for an after-diff). |
 | `ips_diff_variables` | diff a previous snapshot against live values → what changed (verify the effect of a change). |
+| `ips_call_read` | generic **read** gateway to any reading core function without a dedicated tool — `IPS_GetEvent`, `AC_GetLoggedValues`, `IPS_GetScriptList`, `IPS_GetLocation`, `MC_GetModuleList`. Refuses anything that is not a reading core function, and refuses the readers that carry integration credentials (`IPS_GetConfiguration`, `IPS_GetSnapshot`). |
 | `ips_export_subtree` | serialize a subtree to rich JSON for **backup/migration** (variables type+profile+value, script content, event/instance/link detail). |
 
 Write/dev tools (only after an approved plan; gated by `IPS_ENABLE_WRITE`):
@@ -70,7 +71,7 @@ Write/dev tools (only after an approved plan; gated by `IPS_ENABLE_WRITE`):
 | `ips_create_variable` | create a typed variable (`boolean`/`integer`/`float`/`string`, optional profile). |
 | `ips_create_event` | create an event shell (`triggered`/`cyclic`/`weekly`); detailed config via `ips_call`. |
 | `ips_import_subtree` | mechanically recreate a subtree from `ips_export_subtree` JSON (categories/variables/scripts) under a target parent → old→new **id_map**; instances/events/links are `skipped` (handled by the `ips-migration` skill). |
-| `ips_call` | generic gateway to any IP-Symcon function for everything without a dedicated tool (instances, profiles, event triggers, rename, move, delete…). |
+| `ips_call` | generic **write** gateway for everything without a dedicated tool (instances, profiles, event triggers, rename, move, delete…). Reading goes through `ips_call_read` — the two are separate because a permission rule matches on the tool name and never on an argument, so one gateway would force the same prompt on `IPS_GetLocation` and `IPS_DeleteObject`. |
 
 > **`ips_run_script_capture` captures the script's OUTPUT** (what it `echo`/`print`s), **not**
 > a top-level PHP `return` (that comes back empty). Have the script `echo` its result.

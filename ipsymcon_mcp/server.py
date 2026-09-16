@@ -87,6 +87,11 @@ CREDENTIAL_BEARING_METHODS = frozenset({
     "WFC_GetSnapshotChangesEx",
 })
 
+READ_GATEWAY_REFUSED_MSG = (
+    "Error: ips_call_read only accepts reading functions of the documented core API. "
+    "'{method}' is not one of them — use ips_call for it (requires IPS_ENABLE_WRITE)."
+)
+
 WRITE_DISABLED_MSG = (
     "Error: Write/dev tools are disabled (safety default). Set IPS_ENABLE_WRITE=true in the "
     "environment/.env to allow modifying the live IP-Symcon system. Recommendation: enable this "
@@ -934,6 +939,32 @@ async def ips_import_subtree(params: ImportSubtreeInput) -> str:
 
 
 @mcp.tool(
+    name="ips_call_read",
+    annotations={"title": "Call a reading IP-Symcon function", "readOnlyHint": True,
+                 "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
+)
+async def ips_call_read(params: CallInput) -> str:
+    """Generic READ gateway: call any reading IP-Symcon function by name. No write gate.
+
+    Covers what no dedicated tool exposes — IPS_GetEvent, AC_GetLoggedValues,
+    IPS_GetScriptList, IPS_GetLocation, MC_GetModuleList and the rest of the documented
+    reading API. Params is the positional argument list. Returns JSON {method, result}.
+
+    Anything that is not a reading core function is refused here, whatever the write gate
+    says; use ips_call for those. The split exists because permission rules match on the
+    tool name and never on an argument: one gateway for both jobs would force the same
+    prompt on IPS_GetLocation and IPS_DeleteObject.
+    """
+    if not _is_read_only_method(params.method):
+        return READ_GATEWAY_REFUSED_MSG.format(method=params.method)
+    try:
+        result = await _client(params.instance).call(params.method, params.params)
+        return _dumps({"method": params.method, "result": result})
+    except Exception as e:  # noqa: BLE001
+        return _handle_error(e)
+
+
+@mcp.tool(
     name="ips_call",
     annotations={"title": "Call any IP-Symcon function", "readOnlyHint": False, "destructiveHint": True,
                  "idempotentHint": False, "openWorldHint": True},
@@ -945,11 +976,11 @@ async def ips_call(params: CallInput) -> str:
     IPS_CreateEvent, IPS_CreateInstance, IPS_SetEventActive. Params is the positional argument
     list for the function. Returns JSON {method, result}.
 
-    Reading functions of the documented core API (IPS_GetEvent, AC_GetLoggedValues, ...) work
-    without IPS_ENABLE_WRITE — they cannot change the system, and without them a read-only
-    server has no access to events, archive data or instance configuration at all.
+    For reading functions use ips_call_read instead — it needs no write gate, and keeping the
+    two apart is what lets a permission rule tell a read from a delete. Permission rules match
+    on the tool name, never on an argument.
     """
-    if not _is_read_only_method(params.method) and not _write_enabled(params.instance):
+    if not _write_enabled(params.instance):
         return WRITE_DISABLED_MSG
     try:
         result = await _client(params.instance).call(params.method, params.params)
