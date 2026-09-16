@@ -32,7 +32,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-REPO_URL = "https://github.com/Schimmilab/ipsymcon-mcp-server"
+# Fork. Upstream is https://github.com/Schimmilab/ipsymcon-mcp-server — the runbooks here
+# carry house conventions that are deliberately not upstream material.
+REPO_URL = "https://github.com/JosVanHaag/IPS-MCP-Server"
 SKILLS_DIR = Path(__file__).resolve().parent.parent / "skills"
 
 #: Reihenfolge ist Absicht: ``ipsymcon`` ist der Einstieg, die übrigen sind

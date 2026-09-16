@@ -39,7 +39,12 @@ state; short enough to still save something.
 
 ## Phase 3 — Structure: what the user sees, what stays hidden
 
-Create a category per automation and put **everything** in it — variables, scripts, events.
+**Where things go is a house convention — read it off the tree before you place anything.**
+Two layouts are common and both are coherent: one category per automation holding everything
+(variables, scripts, events), or objects placed semantically — a script under the device it
+serves, its variables under that script, and the shared category reserved for cross-cutting
+helpers. Look at a comparable automation that already exists and follow it; see
+`../../ipsymcon/references/haus-konventionen.md`.
 
 **Visible** — one row per thing that is operated or read:
 
@@ -48,10 +53,19 @@ Create a category per automation and put **everything** in it — variables, scr
 | State | `Dose` (switchable), `Status` (enum profile: off / idle / running) |
 | Live value | a **link** to the source variable — never a copy (a copy needs its own logging and drifts) |
 | Master switch | `Automatik aktiv` (bool, `~Switch`, with action) — the off-switch that stops all intervention |
-| Every tunable | time, threshold, delay, window — each with a **profile** (range, step, unit) **and an action script** |
+| Every tunable that is really tuned | time, threshold, delay, window — each with a **profile** (range, step, unit) **and an action script**. But see the note on variable budget below: a constant that has never been changed is a `const` in the script, not a variable |
 
-**Hidden** (`IPS_SetHidden`): all scripts, all action helpers, all events, all internal
-timestamps. If the user cannot operate it or read it, it does not belong in the visualisation.
+**Hidden** (`IPS_SetHidden`): internal state the user neither operates nor reads — last-run
+timestamps, counters, helper flags. Whether *scripts* are hidden is a house convention and
+differs between installations: check the siblings and follow them (see the `ipsymcon` skill,
+"Creating a script"). Events are never shown in the visualisation anyway.
+
+> ⚠️ **Variables are a budget, not free.** An IP-Symcon licence caps the number of variables,
+> and a grown installation can sit close to that cap. Before adding one, ask whether the
+> value is *derivable* from something that already exists — a threshold comparison, a sign,
+> a fixed vorwarn window. A variable that only restates a constant or a comparison of another
+> variable costs a licence slot and buys nothing. Cache an expensive computation, yes;
+> materialise a one-line derivation, no.
 
 > **A variable with a profile but no action is a display, not a setting.** Assign an action
 > script (`SetValue($_IPS['VARIABLE'], $_IPS['VALUE']);`) or it cannot be changed from the UI.
@@ -131,7 +145,8 @@ stopping the probing was the whole solution.)*
 - [ ] Transitions handled: grace period after switching on, command authoritative for on/off
 - [ ] State update happens **before** any early return
 - [ ] State variables are archived
-- [ ] Scripts, action helpers, events, internal timestamps hidden
+- [ ] Internal state hidden; script visibility follows the siblings, not a guess
+- [ ] No variable added that is derivable from one that already exists (licence budget)
 - [ ] `NextRun` confirms every event is scheduled
 - [ ] End-to-end verified at the Ist, with timestamps
 - [ ] `VariableUpdated` checked on every source variable

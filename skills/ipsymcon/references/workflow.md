@@ -28,32 +28,36 @@ precise. Use `ips_get_variable_by_path` when you know the path but not the ID.
 
 ### Creating a script
 
-1. Resolve the parent Category id by reading the tree.
+1. Resolve the parent id by reading the tree — **not necessarily a Category.** Where a
+   script belongs is itself a house convention: see `references/haus-konventionen.md`.
 2. Plan: "new PHP script `<name>` under `<parent name> (<id>)`, content: <show it>".
 3. On approval: `ips_create_script(parent_id, name, content)` → note the new id.
-4. **Hide it: `ips_call("IPS_SetHidden", [<script_id>, true])`.** Not optional — see below.
+4. **Read it back** with `ips_get_object`: parent as planned, visibility matching the
+   siblings — see below.
 5. Report the new id.
 
-> ⛔ **SCRIPTS ARE ALWAYS HIDDEN. NO EXCEPTIONS.**
-> `ips_create_script` creates the object **visible**, so it shows up in the visualisation
-> next to the things the user actually operates. A script is machinery, not a control —
-> nobody taps a PHP file on a wall panel.
+> ⚠️ **Visibility is a house convention, not a rule of the tool. Read it off the tree.**
+> `ips_create_script` creates the object **visible**. Whether that is right depends on the
+> installation: in some houses every script is hidden machinery, in others every script is
+> deliberately visible. Both are consistent. Guessing is not.
 >
-> **Found the hard way on 2026-08-16:** a freshly created calculation script sat visible in
-> the user's tile view. The three scripts already in that same category — all created the
-> day before by the same user — were **all** `ObjectIsHidden: true`. **The convention was
-> right there in the tree and simply wasn't read.** The user had to point it out.
+> ➡️ **Before creating, check the siblings** (`ips_get_object` on an existing script under
+> the target parent) and follow what is already there. The convention is usually written in
+> the neighbours.
 >
-> ➡️ **Before creating, check the siblings** (`IPS_GetObject` on an existing script in the
-> target category) — the house convention is usually already visible in the neighbours.
-> After creating, **verify with `IPS_GetObject` that `ObjectIsHidden` is actually `true`**;
-> "call returned true" is not the same as "the flag is set" (same class of trap as
+> **Found the hard way, twice, in opposite directions:** once a freshly created script sat
+> visible among three hidden siblings and the user had to point it out; once an agent was
+> about to hide a new script in an installation where every single script was deliberately
+> visible. Same lesson both times — the tree already knows, and it was not read.
+>
+> After creating, **verify with `ips_get_object` that the flag is what you intended**;
+> "the call returned true" is not the same as "the flag is set" (same class of trap as
 > `IPS_SetVariableCustomAction` reporting success while a `StepSize 0` profile kept the
 > control dead).
 >
-> **Variables are the opposite:** they carry the values the user wants to see and stay
-> **visible** unless they are pure internal state (last-run timestamps, counters, helper
-> flags) — those get hidden too. Events are never shown in the visualisation anyway.
+> **Variables** carry the values the user wants to see and stay **visible** unless they are
+> pure internal state (last-run timestamps, counters, helper flags). Events are never shown
+> in the visualisation anyway.
 
 ### Creating a category / variable / event
 

@@ -1,6 +1,6 @@
 {
   "name": "ipsymcon",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "IP-Symcon-Hausautomation mit einem Agenten entwickeln statt nur schalten: Objektbaum lesen, PHP-Skripte anlegen und aendern, Automationen entwerfen, gewachsene Objektbaeume aufraeumen und Teilbaeume zwischen Instanzen migrieren. Setzt den ipsymcon-MCP-Server voraus (separate Installation, siehe README).",
   "author": {
     "name": "Schimmi",

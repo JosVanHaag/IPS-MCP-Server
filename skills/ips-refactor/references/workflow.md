@@ -61,7 +61,8 @@ State explicitly what will **not** change: values, schedules, archive membership
 1. **Create** new structure (categories, extracted variables with profile + action).
 2. **Repoint** references to the new targets — links, scripts, event triggers.
 3. **Verify** the system still works with both old and new in place.
-4. **Hide** the machinery (`IPS_SetHidden`).
+4. **Match the visibility of the siblings** (`IPS_SetHidden` only if that is the house
+   convention — check, do not assume; see the `ipsymcon` skill, "Creating a script").
 5. **Set positions** (`IPS_SetPosition`) so the visualisation has a deliberate order.
 6. **Retire** the now-unreferenced leftovers — rename with a `ZZ_` prefix and hide them.
    **Deleting is a separate pass and belongs to `ips-cleanup`**, after a quarantine period.

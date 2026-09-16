@@ -13,6 +13,9 @@ playbook for using them well and safely.
 
 - **How to carry out a change** (step-by-step workflows, plan & report templates,
   pitfalls): [references/workflow.md](references/workflow.md).
+- **`references/haus-konventionen.md`** — the conventions of *this* installation (object
+  placement, script visibility, the variable budget, code style). Read it before creating or
+  moving anything; it is what the tree already assumes.
 - **`ips_call` function cheat-sheet** (signatures + recipes for event triggers, profiles,
   instances, rename/move/delete): [references/ips-functions.md](references/ips-functions.md).
 
