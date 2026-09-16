@@ -73,6 +73,20 @@ CORE_FUNCTION_PREFIXES = frozenset({
     "ZW", "ModBus",
 })
 
+# Reading functions that are nevertheless gated: they do not change the system, but they
+# carry integration credentials (router, cloud and hub passwords/keys) into the model
+# context and the client logs. The same reason that keeps `include_configuration` off by
+# default in ips_export_subtree — read-through must not reopen that door.
+# IPS_GetSnapshot is the worst of them: it returns the whole object tree including every
+# instance configuration in a single call.
+CREDENTIAL_BEARING_METHODS = frozenset({
+    "IPS_GetConfiguration",
+    "IPS_GetSnapshot",
+    "IPS_GetSnapshotChanges",
+    "WFC_GetSnapshotChanges",
+    "WFC_GetSnapshotChangesEx",
+})
+
 WRITE_DISABLED_MSG = (
     "Error: Write/dev tools are disabled (safety default). Set IPS_ENABLE_WRITE=true in the "
     "environment/.env to allow modifying the live IP-Symcon system. Recommendation: enable this "
@@ -95,7 +109,14 @@ def _is_read_only_method(method: str) -> bool:
     The naming convention is the whole guarantee, so it is only trusted where IP-Symcon
     controls the name: a core prefix, or one of the unprefixed value getters. Everything
     else stays behind the write gate.
+
+    Second limit, and it is not about writing: the readers in CREDENTIAL_BEARING_METHODS are
+    excluded because they pull integration credentials into the model context.
     """
+    # Credential-bearing readers stay behind the gate regardless of their name
+    if method in CREDENTIAL_BEARING_METHODS:
+        return False
+
     prefix, sep, _ = method.partition("_")
     if sep:
         return prefix in CORE_FUNCTION_PREFIXES and ("Get" in method or "Exists" in method)

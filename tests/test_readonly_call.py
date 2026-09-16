@@ -45,7 +45,7 @@ def single_instance(monkeypatch):
 
 @pytest.mark.parametrize("method", [
     "IPS_GetEvent", "IPS_GetObject", "IPS_ObjectExists", "IPS_EventExists",
-    "AC_GetLoggedValues", "AC_GetAggregatedValues", "WFC_GetSnapshotChanges",
+    "AC_GetLoggedValues", "AC_GetAggregatedValues",
     "MC_GetModuleList", "SC_GetShutterControl", "Sys_GetURLContent",
     "GetValue", "GetValueBoolean", "GetValueFormatted",
 ])
@@ -73,6 +73,22 @@ def test_fremde_modulfunktion_bleibt_gesperrt():
     assert server._is_read_only_method("XYZ_GetAndResetCounter") is False
     assert server._is_read_only_method("FoxESS_GetRegister") is False
     assert server._is_read_only_method("Z2M_GetState") is False
+
+
+@pytest.mark.parametrize("method", [
+    "IPS_GetConfiguration", "IPS_GetSnapshot", "IPS_GetSnapshotChanges",
+    "WFC_GetSnapshotChanges", "WFC_GetSnapshotChangesEx",
+])
+def test_zugangsdaten_tragende_leser_bleiben_gesperrt(method):
+    """Diese Funktionen lesen nur -- und muessen trotzdem hinter dem Gate bleiben.
+
+    Sie liefern Instanzkonfigurationen aus, und die tragen regelmaessig Zugangsdaten von
+    Integrationen. `ips_export_subtree` haelt sie aus demselben Grund per Vorgabe zurueck
+    (`include_configuration=False`). Ein Lesepfad, der sie durchlaesst, macht genau diese
+    Schutzmassnahme wieder auf -- `IPS_GetSnapshot` liefert den ganzen Baum samt aller
+    Konfigurationen in einem einzigen Aufruf.
+    """
+    assert server._is_read_only_method(method) is False, method
 
 
 def test_kernpraefix_ohne_leseverb_bleibt_gesperrt():
