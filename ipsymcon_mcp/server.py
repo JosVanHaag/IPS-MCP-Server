@@ -60,6 +60,19 @@ EVENT_TYPE_TO_INT = {"triggered": 0, "cyclic": 1, "weekly": 2}
 
 IPSValue = bool | int | float | str
 
+# Prefixes of IP-Symcon's own documented API. A third-party module registers its
+# functions under its own prefix, and nothing stops such a module from naming a
+# writing function "..._GetAndReset". Read-through therefore stays inside the core
+# surface, where "Get"/"Exists" reliably means "reads".
+CORE_FUNCTION_PREFIXES = frozenset({
+    "AC", "ALL", "CC", "CMI", "CSCK", "Cutter", "DMX", "DS", "EIB", "ENO", "FHT", "FHZ",
+    "FS20", "HC", "HID", "HM", "HMS", "IG", "IMAP", "IPS", "IRT", "KNX", "LCN", "MBUS",
+    "MC", "MQTT", "MSCK", "MXC", "NC", "OC", "OW", "OZW", "PC", "PJ", "POP3", "RegVar",
+    "S7", "SC", "SMS", "SMTP", "SPRT", "SSCK", "Sys", "TTS", "UC", "USCK", "UVR",
+    "VELLEUSB", "VIO", "VOIP", "WAC", "WC", "WFC", "WWW", "WinLIRC", "WuT", "XBee",
+    "ZW", "ModBus",
+})
+
 WRITE_DISABLED_MSG = (
     "Error: Write/dev tools are disabled (safety default). Set IPS_ENABLE_WRITE=true in the "
     "environment/.env to allow modifying the live IP-Symcon system. Recommendation: enable this "
@@ -67,6 +80,27 @@ WRITE_DISABLED_MSG = (
 )
 
 # --- Shared helpers ----------------------------------------------------------
+
+
+def _is_read_only_method(method: str) -> bool:
+    """Can this IP-Symcon function only read?
+
+    IP-Symcon names its API by what a function does: ``Get``/``Exists`` read,
+    ``Set``/``Create``/``Delete``/``Run``/``Apply`` change something. Checked against the
+    817 functions of the documented API (9.0): 187 match, and the six that carry a
+    verb-looking noun — ``IPS_GetAvailableUpdates``, ``IPS_GetKernelRunlevel``,
+    ``IPS_GetLiveUpdateVersion``, ``IPS_GetSnapshotChanges``, ``WFC_GetSnapshotChanges``,
+    ``WFC_GetSnapshotChangesEx`` — all really only read.
+
+    The naming convention is the whole guarantee, so it is only trusted where IP-Symcon
+    controls the name: a core prefix, or one of the unprefixed value getters. Everything
+    else stays behind the write gate.
+    """
+    prefix, sep, _ = method.partition("_")
+    if sep:
+        return prefix in CORE_FUNCTION_PREFIXES and ("Get" in method or "Exists" in method)
+    # Unprefixed core functions: GetValue, GetValueBoolean, ... (SetValue/RequestAction do not match)
+    return method.startswith("Get")
 
 
 def _global_write_enabled() -> bool:
@@ -889,8 +923,12 @@ async def ips_call(params: CallInput) -> str:
     Use this for full API coverage when no dedicated tool exists — e.g. IPS_CreateVariable,
     IPS_CreateEvent, IPS_CreateInstance, IPS_SetEventActive. Params is the positional argument
     list for the function. Returns JSON {method, result}.
+
+    Reading functions of the documented core API (IPS_GetEvent, AC_GetLoggedValues, ...) work
+    without IPS_ENABLE_WRITE — they cannot change the system, and without them a read-only
+    server has no access to events, archive data or instance configuration at all.
     """
-    if not _write_enabled(params.instance):
+    if not _is_read_only_method(params.method) and not _write_enabled(params.instance):
         return WRITE_DISABLED_MSG
     try:
         result = await _client(params.instance).call(params.method, params.params)
