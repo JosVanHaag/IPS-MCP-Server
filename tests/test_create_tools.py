@@ -27,11 +27,12 @@ def _run(coro):
 def test_create_category(monkeypatch):
     monkeypatch.setenv("IPS_ENABLE_WRITE", "true")
     fake = AsyncMock()
-    fake.call.side_effect = [555, None, None]  # CreateCategory, SetParent, SetName
+    fake.call.side_effect = [True, 555, None, None]  # ObjectExists, CreateCategory, SetParent, SetName
     with patch.object(server, "_client", return_value=fake):
         out = _run(ips_create_category(CreateCategoryInput(parent_id=0, name="Sensors")))
     assert json.loads(out) == {"category_id": 555, "name": "Sensors", "parent_id": 0, "ok": True}
     assert fake.call.await_args_list == [
+        call("IPS_ObjectExists", [0]),
         call("IPS_CreateCategory", []),
         call("IPS_SetParent", [555, 0]),
         call("IPS_SetName", [555, "Sensors"]),
@@ -41,7 +42,7 @@ def test_create_category(monkeypatch):
 def test_create_variable_with_profile(monkeypatch):
     monkeypatch.setenv("IPS_ENABLE_WRITE", "true")
     fake = AsyncMock()
-    fake.call.side_effect = [777, None, None, None]
+    fake.call.side_effect = [True, 777, None, None, None]
     with patch.object(server, "_client", return_value=fake):
         out = _run(ips_create_variable(CreateVariableInput(
             parent_id=12, name="Temp", variable_type="float", profile="~Temperature")))
@@ -50,6 +51,7 @@ def test_create_variable_with_profile(monkeypatch):
         "type": "float", "profile": "~Temperature", "ok": True,
     }
     assert fake.call.await_args_list == [
+        call("IPS_ObjectExists", [12]),
         call("IPS_CreateVariable", [2]),
         call("IPS_SetParent", [777, 12]),
         call("IPS_SetName", [777, "Temp"]),
@@ -60,7 +62,7 @@ def test_create_variable_with_profile(monkeypatch):
 def test_create_variable_without_profile_skips_profile_call(monkeypatch):
     monkeypatch.setenv("IPS_ENABLE_WRITE", "true")
     fake = AsyncMock()
-    fake.call.side_effect = [778, None, None]
+    fake.call.side_effect = [True, 778, None, None]
     with patch.object(server, "_client", return_value=fake):
         out = _run(ips_create_variable(CreateVariableInput(
             parent_id=0, name="Flag", variable_type="boolean")))
@@ -69,6 +71,7 @@ def test_create_variable_without_profile_skips_profile_call(monkeypatch):
     assert data["type"] == "boolean"
     assert data["profile"] is None
     assert fake.call.await_args_list == [
+        call("IPS_ObjectExists", [0]),
         call("IPS_CreateVariable", [0]),
         call("IPS_SetParent", [778, 0]),
         call("IPS_SetName", [778, "Flag"]),
@@ -78,7 +81,7 @@ def test_create_variable_without_profile_skips_profile_call(monkeypatch):
 def test_create_event(monkeypatch):
     monkeypatch.setenv("IPS_ENABLE_WRITE", "true")
     fake = AsyncMock()
-    fake.call.side_effect = [888, None, None, None]
+    fake.call.side_effect = [True, 888, None, None, None]
     with patch.object(server, "_client", return_value=fake):
         out = _run(ips_create_event(CreateEventInput(
             parent_id=5, name="Nightly", event_type="cyclic", active=True)))
@@ -87,6 +90,7 @@ def test_create_event(monkeypatch):
         "type": "cyclic", "active": True, "ok": True,
     }
     assert fake.call.await_args_list == [
+        call("IPS_ObjectExists", [5]),
         call("IPS_CreateEvent", [1]),
         call("IPS_SetParent", [888, 5]),
         call("IPS_SetName", [888, "Nightly"]),

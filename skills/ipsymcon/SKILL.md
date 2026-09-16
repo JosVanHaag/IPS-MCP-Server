@@ -38,7 +38,7 @@ If you ever find yourself about to call **any write/dev tool** (anything in the 
 table below) *before* the user has seen and approved a plan — stop. That's the failure
 mode this skill exists to prevent.
 
-## The MCP tools (23)
+## The MCP tools (26)
 
 Read tools (always available, safe to use during planning):
 
@@ -54,6 +54,8 @@ Read tools (always available, safe to use during planning):
 | `ips_get_script_content` | the full PHP source of a script. |
 | `ips_snapshot_variables` | capture the current values of several variables (keep it for an after-diff). |
 | `ips_diff_variables` | diff a previous snapshot against live values → what changed (verify the effect of a change). |
+| `ips_find_objects` | substring search over the **whole** tree, matched against name *and* ident — the first step when only a fragment of the name is known. Use `ips_find_object_by_name` only when you know the exact name and its parent. |
+| `ips_get_logged_values` | a variable's archived history, **oldest first**, with `held_seconds` per entry. Checks that the variable is archived at all first — otherwise "not archived" and "no change in this period" both look like an empty list. |
 | `ips_call_read` | generic **read** gateway to any reading core function without a dedicated tool — `IPS_GetEvent`, `AC_GetLoggedValues`, `IPS_GetScriptList`, `IPS_GetLocation`, `MC_GetModuleList`. Refuses anything that is not a reading core function, and refuses the readers that carry integration credentials (`IPS_GetConfiguration`, `IPS_GetSnapshot`). |
 | `ips_export_subtree` | serialize a subtree to rich JSON for **backup/migration** (variables type+profile+value, script content, event/instance/link detail). |
 
@@ -68,6 +70,7 @@ Write/dev tools (only after an approved plan; gated by `IPS_ENABLE_WRITE`):
 | `ips_set_script_content` | **overwrite** a script's full PHP source. |
 | `ips_create_script` | create a new PHP script (parent + name + content). |
 | `ips_create_category` | create a category (structure the tree). |
+| `ips_create_link` | create a link to an existing object — how one value appears in a second place in the tree. A copy would need its own logging and would drift. |
 | `ips_create_variable` | create a typed variable (`boolean`/`integer`/`float`/`string`, optional profile). |
 | `ips_create_event` | create an event shell (`triggered`/`cyclic`/`weekly`); detailed config via `ips_call`. |
 | `ips_import_subtree` | mechanically recreate a subtree from `ips_export_subtree` JSON (categories/variables/scripts) under a target parent → old→new **id_map**; instances/events/links are `skipped` (handled by the `ips-migration` skill). |

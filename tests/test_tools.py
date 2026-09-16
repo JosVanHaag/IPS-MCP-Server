@@ -54,7 +54,7 @@ def test_get_value_returns_value():
 def test_get_variable_maps_metadata():
     meta = {"VariableType": 2, "VariableProfile": "Temperature",
             "VariableAction": 0, "VariableUpdated": 0, "VariableChanged": 0}
-    fake = _client_returning(side_effect=[meta, 21.5, "Wohnzimmer Temp"])
+    fake = _client_returning(side_effect=[meta, 21.5, "Wohnzimmer Temp", "Raeume\\WZ\\Temp"])
     with patch.object(server, "_client", return_value=fake):
         out = _run(ips_get_variable(VarIdInput(variable_id=12345)))
     data = json.loads(out)
@@ -63,6 +63,8 @@ def test_get_variable_maps_metadata():
     assert data["profile"] == "Temperature"
     assert data["value"] == 21.5
     assert data["has_action"] is False
+    assert data["action_script_id"] == 0
+    assert data["path"] == "Raeume\\WZ\\Temp"
 
 
 def test_get_object_enriches_type_name():

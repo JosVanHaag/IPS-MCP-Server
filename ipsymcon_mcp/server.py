@@ -58,6 +58,10 @@ VARIABLE_TYPES = {0: "Boolean", 1: "Integer", 2: "Float", 3: "String"}
 VAR_TYPE_TO_INT = {"boolean": 0, "integer": 1, "float": 2, "string": 3}
 EVENT_TYPE_TO_INT = {"triggered": 0, "cyclic": 1, "weekly": 2}
 
+# Module GUID of IP-Symcon's Archive Control — used to resolve the archive instance
+# automatically instead of making every caller know its object id.
+ARCHIVE_MODULE_GUID = "{43192F0B-135B-4CE7-A0A7-1475603F3060}"
+
 IPSValue = bool | int | float | str
 
 # Prefixes of IP-Symcon's own documented API. A third-party module registers its
@@ -99,6 +103,18 @@ WRITE_DISABLED_MSG = (
 )
 
 # --- Shared helpers ----------------------------------------------------------
+
+
+async def _parent_missing(client, parent_id: int) -> str | None:
+    """Error message if parent_id does not exist, else None — check BEFORE creating.
+
+    IPS_Create* takes no parent: the object is created first and moved afterwards. If the
+    move fails, a nameless object is left sitting in the root, and the caller sees an error
+    for something that was in fact half-done. Checking first keeps the failure clean.
+    """
+    if not await client.call("IPS_ObjectExists", [parent_id]):
+        return f"Error: parent object {parent_id} does not exist — nothing was created."
+    return None
 
 
 def _is_read_only_method(method: str) -> bool:
@@ -283,6 +299,30 @@ class CallInput(_Base):
     params: list[Any] = Field(default_factory=list, description="Positional parameter list for the function")
 
 
+class FindObjectsInput(_Base):
+    query: str = Field(..., min_length=1,
+                       description="Case-insensitive substring, matched against object name AND ident")
+    object_type: int | None = Field(
+        default=None, ge=0, le=6,
+        description="Restrict to one type: 0 Category, 1 Instance, 2 Variable, 3 Script, 4 Event, 5 Media, 6 Link",
+    )
+    limit: int = Field(default=100, ge=1, le=1000, description="Maximum number of matches returned")
+
+
+class GetLoggedValuesInput(_Base):
+    variable_id: int = Field(..., description="Variable whose archived values to read")
+    days: int = Field(default=1, ge=1, le=3650, description="How many days back from now")
+    archive_id: int | None = Field(
+        default=None, description="Archive Control instance; resolved automatically when omitted")
+    limit: int = Field(default=500, ge=1, le=10000, description="Maximum number of archive entries")
+
+
+class CreateLinkInput(_Base):
+    target_id: int = Field(..., description="Object the link points at")
+    parent_id: int = Field(..., description="Where the link is placed in the tree")
+    name: str = Field(..., min_length=1, description="Display name of the link")
+
+
 class GetVariableByPathInput(_Base):
     path: str = Field(..., description="Object path from the base, e.g. 'Räume/Büro/Zustand'", min_length=1)
     base_id: int = Field(default=0, description="Object ID the path is relative to (0 = root)", ge=0)
@@ -353,21 +393,31 @@ async def ips_get_value(params: VarIdInput) -> str:
 async def ips_get_variable(params: VarIdInput) -> str:
     """Read full metadata + current value of a variable (IPS_GetVariable + GetValue + name).
 
-    Returns JSON: {variable_id, name, type, profile, value, has_action, updated, changed}.
-    'updated'/'changed' are ISO timestamps. 'type' is Boolean/Integer/Float/String.
+    Returns JSON: {variable_id, name, path, type, profile, value, action_script_id,
+    has_action, updated, changed}. 'updated'/'changed' are ISO timestamps, 'type' is
+    Boolean/Integer/Float/String.
+
+    'profile' reports the **custom** profile when one is set, because that is the one in
+    effect — a custom profile overrides the variable's own. 'action_script_id' is the script
+    behind the variable (0 = none); a variable with a profile but no action is a display, not
+    a setting, and the id is what you need to read or fix that script.
     """
     try:
         client = _client(params.instance)
         meta = await client.call("IPS_GetVariable", [params.variable_id])
         value = await client.call("GetValue", [params.variable_id])
         name = await client.call("IPS_GetName", [params.variable_id])
+        path = await client.call("IPS_GetLocation", [params.variable_id])
+        action_id = meta.get("VariableCustomAction", 0) or meta.get("VariableAction", 0) or 0
         out = {
             "variable_id": params.variable_id,
             "name": name,
+            "path": path,
             "type": VARIABLE_TYPES.get(meta.get("VariableType"), meta.get("VariableType")),
-            "profile": meta.get("VariableProfile") or meta.get("VariableCustomProfile") or None,
+            "profile": meta.get("VariableCustomProfile") or meta.get("VariableProfile") or None,
             "value": value,
-            "has_action": bool(meta.get("VariableAction", 0)) or bool(meta.get("VariableCustomAction", 0)),
+            "action_script_id": action_id,
+            "has_action": bool(action_id),
             "updated": _ts(meta.get("VariableUpdated")),
             "changed": _ts(meta.get("VariableChanged")),
         }
@@ -765,6 +815,9 @@ async def ips_create_script(params: CreateScriptInput) -> str:
         return WRITE_DISABLED_MSG
     try:
         client = _client(params.instance)
+        parent_error = await _parent_missing(client, params.parent_id)
+        if parent_error:
+            return parent_error
         new_id = await client.call("IPS_CreateScript", [0])  # 0 = PHP script
         await client.call("IPS_SetParent", [new_id, params.parent_id])
         await client.call("IPS_SetName", [new_id, params.name])
@@ -790,6 +843,9 @@ async def ips_create_category(params: CreateCategoryInput) -> str:
         return WRITE_DISABLED_MSG
     try:
         client = _client(params.instance)
+        parent_error = await _parent_missing(client, params.parent_id)
+        if parent_error:
+            return parent_error
         new_id = await client.call("IPS_CreateCategory", [])
         await client.call("IPS_SetParent", [new_id, params.parent_id])
         await client.call("IPS_SetName", [new_id, params.name])
@@ -814,6 +870,9 @@ async def ips_create_variable(params: CreateVariableInput) -> str:
         return WRITE_DISABLED_MSG
     try:
         client = _client(params.instance)
+        parent_error = await _parent_missing(client, params.parent_id)
+        if parent_error:
+            return parent_error
         new_id = await client.call("IPS_CreateVariable", [VAR_TYPE_TO_INT[params.variable_type]])
         await client.call("IPS_SetParent", [new_id, params.parent_id])
         await client.call("IPS_SetName", [new_id, params.name])
@@ -844,6 +903,9 @@ async def ips_create_event(params: CreateEventInput) -> str:
         return WRITE_DISABLED_MSG
     try:
         client = _client(params.instance)
+        parent_error = await _parent_missing(client, params.parent_id)
+        if parent_error:
+            return parent_error
         new_id = await client.call("IPS_CreateEvent", [EVENT_TYPE_TO_INT[params.event_type]])
         await client.call("IPS_SetParent", [new_id, params.parent_id])
         await client.call("IPS_SetName", [new_id, params.name])
@@ -985,6 +1047,160 @@ async def ips_call(params: CallInput) -> str:
     try:
         result = await _client(params.instance).call(params.method, params.params)
         return _dumps({"method": params.method, "result": result})
+    except Exception as e:  # noqa: BLE001
+        return _handle_error(e)
+
+
+@mcp.tool(
+    name="ips_find_objects",
+    annotations={"title": "Search objects by name or ident", "readOnlyHint": True,
+                 "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
+)
+async def ips_find_objects(params: FindObjectsInput) -> str:
+    """Substring search across the whole object tree, over name **and** ident.
+
+    Complements ips_find_object_by_name, which resolves an *exact* name under *one* parent.
+    This one answers "where is anything called ...?" — the usual first step when only a
+    fragment of the name is known, or when the ident is the only thing you have.
+
+    Reads a single IPS_GetSnapshot and filters server-side: one round-trip instead of one
+    per object. Only id, name, ident, type and parent leave this tool — the snapshot also
+    carries every instance configuration, and those must not reach the model context.
+
+    Returns JSON {query, count, truncated, objects:[{id,name,ident,type,parent_id}]}.
+    """
+    try:
+        client = _client(params.instance)
+        snapshot = await client.call("IPS_GetSnapshot", [])
+        objects = snapshot.get("objects", {}) if isinstance(snapshot, dict) else {}
+        needle = params.query.casefold()
+        hits: list[dict[str, Any]] = []
+        for key, obj in objects.items():
+            if not isinstance(obj, dict):
+                continue
+            otype = obj.get("type")
+            if params.object_type is not None and otype != params.object_type:
+                continue
+            name = str(obj.get("name", ""))
+            ident = str(obj.get("ident", ""))
+            if needle not in name.casefold() and needle not in ident.casefold():
+                continue
+            hits.append({
+                "id": int(key[2:]) if str(key).startswith("ID") and str(key)[2:].isdigit() else key,
+                "name": name,
+                "ident": ident,
+                "type": OBJECT_TYPES.get(otype, otype),
+                "parent_id": obj.get("parentID"),
+            })
+        hits.sort(key=lambda h: (str(h["type"]), h["name"].casefold()))
+        return _dumps({
+            "query": params.query,
+            "count": len(hits),
+            "truncated": len(hits) > params.limit,
+            "objects": hits[: params.limit],
+        })
+    except Exception as e:  # noqa: BLE001
+        return _handle_error(e)
+
+
+@mcp.tool(
+    name="ips_get_logged_values",
+    annotations={"title": "Read archived values of a variable", "readOnlyHint": True,
+                 "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
+)
+async def ips_get_logged_values(params: GetLoggedValuesInput) -> str:
+    """Read a variable's archived history (AC_GetLoggedValues), **oldest first**.
+
+    Three things this does beyond the raw call, each of which is easy to get wrong:
+
+    * It checks AC_GetLoggingStatus first. Without that, "not archived at all" and "archived
+      but no change in this period" both come back as an empty list — a silent wrong answer.
+    * It turns 'days' into the unix window the API expects.
+    * It reverses the result. IP-Symcon returns newest first, which reads backwards for any
+      question about a sequence of events.
+
+    Each entry also carries 'held_seconds' — how long that value stood before the next one.
+    That is what makes a value series answer "how long was it on?" instead of "when did it
+    change?".
+
+    'archive_id' is optional; the Archive Control instance is resolved automatically.
+    Returns JSON {variable_id, archive_id, days, count, values:[{timestamp,value,held_seconds}]}.
+    """
+    try:
+        client = _client(params.instance)
+        archive_id = params.archive_id
+        if archive_id is None:
+            found = await client.call("IPS_GetInstanceListByModuleID", [ARCHIVE_MODULE_GUID])
+            if not found:
+                return "Error: no Archive Control instance found — pass archive_id explicitly."
+            archive_id = found[0]
+
+        if not await client.call("AC_GetLoggingStatus", [archive_id, params.variable_id]):
+            return (
+                f"Error: variable {params.variable_id} is not archived by instance {archive_id}. "
+                "Returning an empty list here would be indistinguishable from 'no values in "
+                "this period' — enable logging first (AC_SetLoggingStatus) if that is intended."
+            )
+
+        end = int(datetime.now(tz=UTC).timestamp())
+        start = end - params.days * 86400
+        rows = await client.call(
+            "AC_GetLoggedValues", [archive_id, params.variable_id, start, end, params.limit]
+        )
+        rows = [r for r in (rows or []) if isinstance(r, dict)]
+        rows.reverse()  # IP-Symcon returns newest first
+
+        values = []
+        for i, row in enumerate(rows):
+            stamp = int(row.get("TimeStamp", 0))
+            nxt = int(rows[i + 1].get("TimeStamp", end)) if i + 1 < len(rows) else end
+            values.append({
+                "timestamp": _ts(stamp),
+                "value": row.get("Value"),
+                "held_seconds": max(0, nxt - stamp),
+            })
+        return _dumps({
+            "variable_id": params.variable_id,
+            "archive_id": archive_id,
+            "days": params.days,
+            "count": len(values),
+            "values": values,
+        })
+    except Exception as e:  # noqa: BLE001
+        return _handle_error(e)
+
+
+@mcp.tool(
+    name="ips_create_link",
+    annotations={"title": "Create a link", "readOnlyHint": False, "destructiveHint": True,
+                 "idempotentHint": False, "openWorldHint": True},
+)
+async def ips_create_link(params: CreateLinkInput) -> str:
+    """Create a link to an existing object (IPS_CreateLink). Requires IPS_ENABLE_WRITE.
+
+    Performs IPS_ObjectExists(parent) → IPS_CreateLink → IPS_SetLinkTargetID → IPS_SetParent
+    → IPS_SetName. A link is how one value appears in a second place in the tree — a copy
+    would need its own logging and would drift.
+
+    Returns JSON {link_id, name, parent_id, target_id, ok}.
+    """
+    if not _write_enabled(params.instance):
+        return WRITE_DISABLED_MSG
+    try:
+        client = _client(params.instance)
+        parent_error = await _parent_missing(client, params.parent_id)
+        if parent_error:
+            return parent_error
+        if not await client.call("IPS_ObjectExists", [params.target_id]):
+            return f"Error: link target {params.target_id} does not exist — nothing was created."
+        new_id = await client.call("IPS_CreateLink", [])
+        await client.call("IPS_SetLinkTargetID", [new_id, params.target_id])
+        await client.call("IPS_SetParent", [new_id, params.parent_id])
+        await client.call("IPS_SetName", [new_id, params.name])
+        return _dumps({
+            "link_id": new_id, "name": params.name,
+            "parent_id": params.parent_id, "target_id": params.target_id, "ok": True,
+        })
     except Exception as e:  # noqa: BLE001
         return _handle_error(e)
 
