@@ -146,8 +146,28 @@ live event instead: `IPS_GetEvent()` returns `LastRun` and `NextRun` — their d
 the interval. (Guessing "minutes" would have polled 60× too slowly, which barely shows on a
 temperature value.)
 
+⛔ **`ActionParameters` over JSON-RPC must be `{}`, not `[]`.** PHP does not distinguish an
+empty array from an empty map; JSON does. The same call therefore has two spellings, and the
+error messages point at the argument rather than at the spelling:
+
+| Call via `ips_call` | Result |
+|---|---|
+| `[<id>, "{7938A5A2-…}", {}]` | works |
+| `[<id>, "{7938A5A2-…}", []]` | `Parameter type of ActionParameters does not match` |
+| `[<id>, "{7938A5A2-…}"]` | `Parameter count mismatch` |
+
+In PHP context (`IPS_RunScriptText`) `[]` is correct. Verified live 2026-09.
+
+⚠️ **A message naming a parameter is about your call, not about a limit of the interface.**
+The two errors above were once taken together as proof that `IPS_SetEventAction` "cannot be
+set over RPC at all", and that wrong conclusion survived in a house note for months. It can.
+
 - `IPS_SetEventCyclic($id, $DateType, $DateValue, $DateDay, $DateDayValue, $TimeType, $TimeValue)`
+  — `TimeType` **before** `TimeValue`. `DateType`: 0=none 1=once 2=day 3=week 4=month 5=year ·
+  `TimeType`: 0=once 1=second 2=minute 3=hour. Verified against the documented function table
+  and live 2026-09 (`(…, 3, 7)` → `CyclicTimeType: 3`, `CyclicTimeValue: 7`).
 - `TriggerType`: 0=on update · 1=on change · 2=below limit · 3=above limit · 4=on value
+- The action id for "run the parent script" is `{7938A5A2-0981-5FE0-BE6C-8AA610D654EB}`.
 
 ## Archive / history transfer between instances
 
